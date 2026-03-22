@@ -32,9 +32,13 @@ def main(page: ft.Page):
     ORDNER_VORLAGEN = os.path.join(BASIS_ORDNER, "vorlagen")
     ORDNER_ARCHIV = os.path.join(BASIS_ORDNER, "archiv")
     
-    for ordner in [ORDNER_POSTAUSGANG, ORDNER_VORLAGEN, ORDNER_ARCHIV]:
-        if not os.path.exists(ordner):
-            os.makedirs(ordner)
+    # Schutzschild hinzugefügt, falls Android beim Ordner-Bauen kurz zickt
+    try:
+        for ordner in [ORDNER_POSTAUSGANG, ORDNER_VORLAGEN, ORDNER_ARCHIV]:
+            if not os.path.exists(ordner):
+                os.makedirs(ordner)
+    except Exception as e:
+        print(f"Ordner-Fehler: {e}")
 
     app_state = {"markt": None, "update_datei": None}
 
@@ -436,11 +440,11 @@ def main(page: ft.Page):
     button_einstellungen.on_click = lambda _: wechsle_ansicht("einstellungen")
     button_home.on_click = lambda _: wechsle_ansicht("profil")
 
-    # --- KANTENGLÄTTUNG FÜR DAS LOGO (filter_quality=ft.FilterQuality.HIGH) ---
+    # BÖSEN BEFEHL (filter_quality) ENTFERNT! Das Logo funktioniert jetzt wieder ganz brav.
     header_logo = ft.Container(
         content=ft.Stack([
             ft.Row([
-                ft.Image(src="logo.png", height=45, fit=ft.ImageFit.CONTAIN, filter_quality=ft.FilterQuality.HIGH, error_content=ft.Text("BILACON", color="#061A14", weight="bold", size=20))
+                ft.Image(src="logo.png", height=45, fit="contain", error_content=ft.Text("BILACON", color="#061A14", weight="bold", size=20))
             ], alignment=ft.MainAxisAlignment.START), 
             ft.Row([
                 ft.Container(content=text_benutzer_info, padding=ft.padding.only(right=10, top=12))
@@ -450,7 +454,6 @@ def main(page: ft.Page):
         bgcolor="white"
     )
     
-    # --- AUTOMATISCHER UMBRUCH FÜR DIE BUTTON-LEISTE (wrap=True) ---
     nav_balken = ft.Container(
         content=ft.Row(
             [button_touren, button_archiv, button_einstellungen, button_dashboard, button_postausgang, button_home], 
