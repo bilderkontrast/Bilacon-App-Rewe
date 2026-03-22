@@ -8,6 +8,7 @@ import pdf_helfer
 import time
 import threading
 from datetime import datetime
+import platform
 
 def main(page: ft.Page):
     page.title = "Bilacon Zentrale"
@@ -26,7 +27,7 @@ def main(page: ft.Page):
         bgcolor=FARBE_BUTTON
     )
     
-    BASIS_ORDNER = os.path.abspath(os.getcwd())
+    BASIS_ORDNER = os.getcwd() 
     ORDNER_POSTAUSGANG = os.path.join(BASIS_ORDNER, "postausgang")
     ORDNER_VORLAGEN = os.path.join(BASIS_ORDNER, "vorlagen")
     ORDNER_ARCHIV = os.path.join(BASIS_ORDNER, "archiv")
@@ -44,28 +45,14 @@ def main(page: ft.Page):
             return pfad
         return None
 
-    # --- DATEI AUSWÄHLER (FILE PICKER) ---
-    file_picker = ft.FilePicker()
-    
-    def on_datei_ausgewaehlt(e: ft.FilePickerResultEvent):
-        if e.files and len(e.files) > 0:
-            ausgewaehlte_datei = e.files[0]
-            ziel_name = app_state.get("update_datei")
-            if ziel_name:
-                ziel_pfad = os.path.join(ORDNER_VORLAGEN, ziel_name)
-                try:
-                    shutil.copy2(ausgewaehlte_datei.path, ziel_pfad)
-                    text_einstellungen_meldung.value = f"✅ '{ziel_name}' erfolgreich importiert!"
-                    text_einstellungen_meldung.color = "#4CAF50"
-                except Exception as ex:
-                    text_einstellungen_meldung.value = f"❌ Fehler beim Import: {ex}"
-                    text_einstellungen_meldung.color = "#FF4C4C"
-                
-                text_einstellungen_meldung.visible = True
-                aktualisiere_einstellungen()
-                page.update()
-
-    file_picker.on_result = on_datei_ausgewaehlt
+    def oeffne_datei_am_pc(pfad):
+        try:
+            if platform.system() == "Android":
+                page.launch_url(f"file://{pfad}")
+            else:
+                os.startfile(pfad) 
+        except Exception as e:
+            print(f"Fehler beim Öffnen: {e}")
 
     # --- UI ELEMENTE & BUTTONS ---
     text_titel = ft.Text("", size=22, weight="bold", color="white")
@@ -74,7 +61,6 @@ def main(page: ft.Page):
     
     text_status_meldung = ft.Text("", color="red", weight="bold", size=14, visible=False, text_align=ft.TextAlign.CENTER)
     text_dash_meldung = ft.Text("", color="red", weight="bold", size=14, visible=False, text_align=ft.TextAlign.CENTER)
-    text_einstellungen_meldung = ft.Text("", color="green", weight="bold", size=14, visible=False, text_align=ft.TextAlign.CENTER)
     
     btn_paket_bauen = ft.ElevatedButton("PAKET BAUEN", icon=ft.Icons.MERGE, bgcolor="blue", color="white", style=BUTTON_STYLE, expand=True)
     btn_abschluss = ft.ElevatedButton("INS ARCHIV VERSCHIEBEN", icon=ft.Icons.ARCHIVE, bgcolor="green", color="white", style=BUTTON_STYLE, expand=True, disabled=True)
@@ -83,7 +69,7 @@ def main(page: ft.Page):
     button_archiv = ft.TextButton(content=ft.Row([ft.Icon(ft.Icons.HISTORY, color="white"), ft.Text("Archiv", color="white")], spacing=5))
     button_dashboard = ft.TextButton(content=ft.Row([ft.Icon(ft.Icons.DASHBOARD, color="white"), ft.Text("Dash", color="white")], spacing=5), visible=False)
     button_postausgang = ft.TextButton(content=ft.Row([ft.Icon(ft.Icons.CLOUD_UPLOAD, color="white"), text_postausgang_zaehler], spacing=5), visible=False)
-    button_einstellungen = ft.TextButton(content=ft.Row([ft.Icon(ft.Icons.SETTINGS, color="white54"), ft.Text("Vorlagen", color="white54")], spacing=5)) 
+    button_einstellungen = ft.TextButton(content=ft.Row([ft.Icon(ft.Icons.SETTINGS, color="white"), ft.Text("Vorlagen", color="white")], spacing=5))
     button_home = ft.TextButton(content=ft.Row([ft.Icon(ft.Icons.PERSON, color="white54"), ft.Text("Profil", color="white54")], spacing=5))
 
     bereich_profil = ft.Column(visible=False, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=20)
@@ -93,16 +79,37 @@ def main(page: ft.Page):
     bereich_archiv = ft.Column(visible=False, spacing=15)
     bereich_einstellungen = ft.Column(visible=False, spacing=15) 
 
+    # --- DATEI AUSWÄHLER (FILEPICKER) FÜR ANDROID ---
+    def on_datei_ausgewaehlt(e: ft.FilePickerResultEvent):
+        if e.files and len(e.files) > 0:
+            ausgewaehlte_datei = e.files[0]
+            ziel_name = app_state.get("update_datei")
+            if ziel_name:
+                ziel_pfad = os.path.join(ORDNER_VORLAGEN, ziel_name)
+                try:
+                    shutil.copy2(ausgewaehlte_datei.path, ziel_pfad)
+                    text_status_meldung.value = f"✅ '{ziel_name}' erfolgreich importiert!"
+                    text_status_meldung.color = "#4CAF50"
+                except Exception as ex:
+                    text_status_meldung.value = f"❌ Fehler beim Import: {ex}"
+                    text_status_meldung.color = "#FF4C4C"
+                
+                text_status_meldung.visible = True
+                aktualisiere_einstellungen()
+                page.update()
+
+    file_picker = ft.FilePicker(on_result=on_datei_ausgewaehlt)
+    page.overlay.append(file_picker)
+
     def zeige_home():
         bereich_profil.controls.clear()
-        benutzer = config_helfer.lade_benutzerdaten()
+        try: benutzer = config_helfer.lade_benutzerdaten()
+        except: benutzer = None
 
-        # HIER IST DER NEUE TEXT!
         titel_text = ft.Text(
             spans=[
-                ft.TextSpan("Willkommen!\n", style=ft.TextStyle(color="white", size=24, weight="bold")),
-                ft.TextSpan("REWE ", style=ft.TextStyle(color="#E23D28", size=32, weight="bold")), 
-                ft.TextSpan("Monitoring", style=ft.TextStyle(color="white", size=32, weight="bold"))
+                ft.TextSpan("REWE\n", style=ft.TextStyle(color="#E23D28", size=32, weight="bold")), 
+                ft.TextSpan("Hackfleischmonitoring", style=ft.TextStyle(color="white", size=24, weight="bold"))
             ], 
             text_align=ft.TextAlign.CENTER
         )
@@ -110,16 +117,16 @@ def main(page: ft.Page):
         if benutzer and "ordner" in benutzer:
             name = benutzer["ordner"]
             text_benutzer_info.value = f"Probenehmer: {name}"
-            # Das "Willkommen zurück" habe ich entfernt, da "Willkommen!" jetzt schon groß drüber steht
+            willkommen = ft.Text(f"Willkommen zurück, {name}!", color="white", size=18, weight="bold")
             btn_weiter = ft.ElevatedButton("Weiter zu den Touren", icon=ft.Icons.ARROW_FORWARD, on_click=lambda _: wechsle_ansicht("touren"), height=50, width=300, bgcolor=FARBE_BUTTON, color="white", style=BUTTON_STYLE)
-            btn_reset = ft.TextButton("Mit anderem Namen anmelden", on_click=lambda _: [config_helfer.loesche_benutzerdaten(), zeige_home()], icon=ft.Icons.SWITCH_ACCOUNT, icon_color="white54")
-            bereich_profil.controls.extend([titel_text, ft.Divider(height=20, color="transparent"), btn_weiter, btn_reset])
+            btn_reset = ft.TextButton("Mit anderem Namen anmelden", on_click=lambda _: [config_helfer.loesche_benutzerdaten() if hasattr(config_helfer, 'loesche_benutzerdaten') else None, zeige_home()], icon=ft.Icons.SWITCH_ACCOUNT, icon_color="white54")
+            bereich_profil.controls.extend([titel_text, ft.Divider(height=20, color="transparent"), willkommen, btn_weiter, btn_reset])
         else:
             text_benutzer_info.value = ""
             feld_name = ft.TextField(hint_text="Dein Name", text_align=ft.TextAlign.CENTER, bgcolor=FARBE_BUTTON, border_color="transparent")
             def save_click(e):
                 if feld_name.value.strip():
-                    config_helfer.speichere_benutzerdaten(feld_name.value.strip())
+                    if hasattr(config_helfer, 'speichere_benutzerdaten'): config_helfer.speichere_benutzerdaten(feld_name.value.strip())
                     text_benutzer_info.value = f"Probenehmer: {feld_name.value.strip()}"
                     wechsle_ansicht("touren")
             btn_start = ft.ElevatedButton("Profil speichern & Starten", on_click=save_click, height=50, width=300, bgcolor=FARBE_BUTTON, color="white", style=BUTTON_STYLE)
@@ -130,7 +137,6 @@ def main(page: ft.Page):
     def wechsle_ansicht(ansicht_name):
         text_status_meldung.visible = False 
         text_dash_meldung.visible = False
-        text_einstellungen_meldung.visible = False
         
         bereich_profil.visible = (ansicht_name == "profil")
         bereich_touren.visible = (ansicht_name == "touren")
@@ -139,12 +145,12 @@ def main(page: ft.Page):
         bereich_archiv.visible = (ansicht_name == "archiv")
         bereich_einstellungen.visible = (ansicht_name == "einstellungen")
         
-        button_touren.visible = (ansicht_name not in ["profil", "einstellungen"])
-        button_archiv.visible = (ansicht_name not in ["profil", "einstellungen"])
+        button_touren.visible = (ansicht_name != "profil")
+        button_archiv.visible = (ansicht_name != "profil")
+        button_einstellungen.visible = (ansicht_name != "profil")
         button_dashboard.visible = (ansicht_name in ["dashboard", "postausgang"])
         button_postausgang.visible = (ansicht_name in ["dashboard", "postausgang"])
         button_home.visible = (ansicht_name != "profil")
-        button_einstellungen.visible = (ansicht_name != "profil")
         
         if ansicht_name == "profil":
             text_titel.value = ""
@@ -163,52 +169,48 @@ def main(page: ft.Page):
             text_titel.value = "🗄️ Archiv (Letzte 7 Tage)"
             aktualisiere_archiv()
         elif ansicht_name == "einstellungen":
-            text_titel.value = "⚙️ Vorlagen Import (Teams)"
+            text_titel.value = "⚙️ Vorlagen Import"
             aktualisiere_einstellungen()
             
         page.update()
 
+    # --- VORLAGEN IMPORT LOGIK ---
+    ansicht_einstellungen_liste = ft.Column(spacing=10, scroll="auto")
+    bereich_einstellungen.controls = [ft.Text("PDF-Vorlagen vom Handy laden:", color="green", weight="bold"), ansicht_einstellungen_liste, text_status_meldung]
+
     def aktualisiere_einstellungen():
         ansicht_einstellungen_liste.controls.clear()
-        
-        benoetigte_dateien = [
-            ("Stammdaten PDF", "stammdaten.pdf", ft.Icons.HOME_WORK),
-            ("Hackfleisch PDF", "HFM.pdf", ft.Icons.LUNCH_DINING),
-            ("Obst & Gemüse PDF", "OG.pdf", ft.Icons.ECO),
-            ("Trinkwasser PDF", "TW.pdf", ft.Icons.WATER_DROP),
-            ("Scherbeneis PDF", "Scherbeneis.pdf", ft.Icons.AC_UNIT),
-            ("Sonstiges (Zusätzl. Protokolle)", "sonstiges.pdf", ft.Icons.NOTE_ADD)
-        ]
-        
-        for titel, dateiname, icon in benoetigte_dateien:
-            pfad = os.path.join(ORDNER_VORLAGEN, dateiname)
-            ist_da = os.path.exists(pfad)
+        benoetigte = [("Stammdaten PDF", "stammdaten.pdf"), ("Hackfleisch PDF", "HFM.pdf"), ("OG PDF", "OG.pdf"), ("Trinkwasser PDF", "TW.pdf"), ("Scherbeneis PDF", "Scherbeneis.pdf")]
+        for titel, datei in benoetigte:
+            ist_da = os.path.exists(os.path.join(ORDNER_VORLAGEN, datei))
+            def import_klick(e, n=datei):
+                app_state["update_datei"] = n
+                file_picker.pick_files() 
             
-            def import_klick(e, name=dateiname):
-                app_state["update_datei"] = name
-                text_einstellungen_meldung.visible = False
-                page.update()
-                file_picker.pick_files(allow_multiple=False)
-                
             ansicht_einstellungen_liste.controls.append(
                 ft.Container(
                     content=ft.Row([
-                        ft.Icon(icon, color="black" if ist_da else "white54"),
-                        ft.Text(titel, expand=True, color="black" if ist_da else "white", weight="bold"),
-                        ft.ElevatedButton("Importieren", icon=ft.Icons.DOWNLOAD, bgcolor="blue", color="white", on_click=import_klick)
-                    ]),
-                    bgcolor="green" if ist_da else "white10", padding=15, border_radius=10
+                        ft.Icon(ft.Icons.CHECK_CIRCLE if ist_da else ft.Icons.ERROR_OUTLINE, color="green" if ist_da else "red"), 
+                        ft.Text(titel, expand=True, color="white"), 
+                        ft.ElevatedButton("Importieren", on_click=import_klick, bgcolor="#144D3F", color="white")
+                    ]), bgcolor="white10", padding=10, border_radius=5
                 )
             )
         page.update()
 
-    ansicht_einstellungen_liste = ft.Column(spacing=10, scroll="auto")
-
+    # --- ARCHIV LOGIK ---
     ansicht_archiv_liste = ft.Column(spacing=5, scroll="auto")
+    
     archiv_info_box = ft.Container(
         content=ft.Column([
             ft.Icon(ft.Icons.MAIL_OUTLINE, color="white", size=30),
-            ft.Text(spans=[ft.TextSpan("Bitte sende die fertigen PDFs an:\n", style=ft.TextStyle(color="white", size=14)), ft.TextSpan("reg.mibi@tentamus.com", style=ft.TextStyle(color="#3498DB", size=18, weight="bold"), url="mailto:reg.mibi@tentamus.com")], text_align=ft.TextAlign.CENTER)
+            ft.Text(
+                spans=[
+                    ft.TextSpan("Bitte sende die fertigen PDFs an:\n", style=ft.TextStyle(color="white", size=14)),
+                    ft.TextSpan("reg.mibi@tentamus.com", style=ft.TextStyle(color="#3498DB", size=18, weight="bold"), url="mailto:reg.mibi@tentamus.com")
+                ],
+                text_align=ft.TextAlign.CENTER
+            )
         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=5),
         bgcolor="white10", padding=15, border_radius=10
     )
@@ -236,8 +238,15 @@ def main(page: ft.Page):
                     content=ft.Row([
                         ft.Icon(ft.Icons.PICTURE_AS_PDF, color="red"), 
                         ft.Text(d, color="white", weight="bold", size=12, expand=True), 
-                        ft.ElevatedButton("Teilen / Mail", icon=ft.Icons.SHARE, bgcolor="blue", color="white", on_click=lambda e, u=url_pfad: page.launch_url(u, web_window_name="_blank"))
-                    ]), bgcolor="white10", padding=10, border_radius=5
+                        ft.ElevatedButton(
+                            "Teilen / Mail", 
+                            icon=ft.Icons.SHARE, 
+                            bgcolor="blue", 
+                            color="white", 
+                            on_click=lambda e, u=url_pfad: page.launch_url(u, web_window_name="_blank")
+                        )
+                    ]), 
+                    bgcolor="white10", padding=10, border_radius=5
                 )
             )
         page.update()
@@ -251,40 +260,38 @@ def main(page: ft.Page):
         f_pfad = os.path.join(ordner, f"Fertig_{d}")
         
         if not os.path.exists(f_pfad):
-            kp = pdf_helfer.kopiere_protokoll(BASIS_ORDNER, ordner, d)
-            if kp: 
-                aktualisiere_dashboard()
-                f_pfad = kp 
-            else: 
-                text_dash_meldung.value = f"❌ FEHLER: Die Vorlage '{d}' fehlt! Gehe auf das Zahnrad ⚙️ und importiere sie aus Teams."
+            try:
+                kp = pdf_helfer.kopiere_protokoll(BASIS_ORDNER, ordner, d)
+                if kp: 
+                    aktualisiere_dashboard()
+                    f_pfad = kp 
+                else: 
+                    raise Exception("Kopieren fehlgeschlagen")
+            except Exception as e:
+                text_dash_meldung.value = f"❌ FEHLER: Die Vorlage '{d}' fehlt! Bitte erst unter 'Vorlagen' importieren."
                 text_dash_meldung.color = "#FF4C4C"
                 text_dash_meldung.visible = True
                 page.update()
                 return
         
-        url_pfad = f"/postausgang/{urllib.parse.quote(app_state['markt'])}/{urllib.parse.quote('Fertig_' + d)}"
-        page.launch_url(url_pfad, web_window_name="_blank")
+        oeffne_datei_am_pc(f_pfad)
 
     def aktualisiere_dashboard():
         ansicht_kacheln.controls.clear()
         ordner = get_markt_ordner()
         if not ordner: return
-        
-        protokolle = [
-            ("Stammdaten", "stammdaten.pdf", ft.Icons.HOME_WORK), 
-            ("Hackfleisch (HFM)", "HFM.pdf", ft.Icons.LUNCH_DINING), 
-            ("Obst & Gemüse (OG)", "OG.pdf", ft.Icons.ECO), 
-            ("Trinkwasser (TW)", "TW.pdf", ft.Icons.WATER_DROP), 
-            ("Scherbeneis", "Scherbeneis.pdf", ft.Icons.AC_UNIT),
-            ("Sonstiges", "sonstiges.pdf", ft.Icons.NOTE_ADD)
-        ]
+        protokolle = [("Stammdaten", "stammdaten.pdf", ft.Icons.HOME_WORK), ("Hackfleisch (HFM)", "HFM.pdf", ft.Icons.LUNCH_DINING), ("Obst & Gemüse (OG)", "OG.pdf", ft.Icons.ECO), ("Trinkwasser (TW)", "TW.pdf", ft.Icons.WATER_DROP), ("Scherbeneis", "Scherbeneis.pdf", ft.Icons.AC_UNIT)]
         
         def alle_add_click(e):
             text_dash_meldung.visible = False
             fehler = 0
             fehlt_liste = []
-            for t, d, i in protokolle: 
-                if not pdf_helfer.kopiere_protokoll(BASIS_ORDNER, ordner, d):
+            for t, d, i in protokolle:
+                try:
+                    if not pdf_helfer.kopiere_protokoll(BASIS_ORDNER, ordner, d):
+                        fehler += 1
+                        fehlt_liste.append(d)
+                except:
                     fehler += 1
                     fehlt_liste.append(d)
             aktualisiere_dashboard()
@@ -293,7 +300,7 @@ def main(page: ft.Page):
                 text_dash_meldung.value = "✅ Alle Vorlagen wurden bereitgestellt!"
                 text_dash_meldung.color = "#4CAF50"
             else:
-                text_dash_meldung.value = f"⚠️ Warnung: {fehler} Vorlage(n) fehlen.\nBitte im Zahnrad-Menü ⚙️ importieren!"
+                text_dash_meldung.value = f"⚠️ Warnung: {fehler} Vorlage(n) fehlen noch.\nBitte erst unter 'Vorlagen' importieren:\n{', '.join(fehlt_liste)}"
                 text_dash_meldung.color = "orange"
             text_dash_meldung.visible = True
             page.update()
@@ -320,7 +327,7 @@ def main(page: ft.Page):
             if ist_gesamt:
                 paket_vorhanden = True
                 
-            url_pfad = f"/postausgang/{urllib.parse.quote(app_state['markt'])}/{urllib.parse.quote(d)}"
+            pfad_zur_datei = os.path.join(get_markt_ordner(), d)
             
             def loesche_datei(e, datei_name=d):
                 versuchs_pfad = os.path.join(get_markt_ordner(), datei_name)
@@ -330,19 +337,27 @@ def main(page: ft.Page):
                     text_status_meldung.visible = False
                     page.update()
                 except Exception as ex:
-                    text_status_meldung.value = f"❌ Kann '{datei_name}' nicht löschen."
+                    text_status_meldung.value = f"❌ Kann '{datei_name}' nicht löschen.\nIst die Datei noch geöffnet?"
                     text_status_meldung.color = "orange"
                     text_status_meldung.visible = True
                     page.update()
 
-            row_controls = []
-            if not ist_gesamt:
-                row_controls.append(ft.IconButton(ft.Icons.REMOVE_RED_EYE, icon_color="blue", tooltip="Öffnen", on_click=lambda e, u=url_pfad: page.launch_url(u, web_window_name="_blank")))
+            row_controls = [
+                ft.IconButton(ft.Icons.PHONE_ANDROID, icon_color="blue", tooltip="Öffnen", on_click=lambda e, p=pfad_zur_datei: oeffne_datei_am_pc(p)),
+                ft.Text(d, color="white", weight="bold" if ist_gesamt else "normal", size=12, expand=True)
+            ]
             
             if ist_gesamt:
-                row_controls.append(ft.ElevatedButton("Zum OneDrive", icon=ft.Icons.CLOUD_UPLOAD, bgcolor="green", color="white", on_click=lambda e, u=url_pfad: page.launch_url(u, web_window_name="_blank")))
+                row_controls.append(
+                    ft.ElevatedButton(
+                        "Teilen", 
+                        icon=ft.Icons.SHARE, 
+                        bgcolor="green", 
+                        color="white", 
+                        on_click=lambda e, p=pfad_zur_datei: page.launch_url(f"file://{p}")
+                    )
+                )
                 
-            row_controls.append(ft.Text(d, color="white", weight="bold" if ist_gesamt else "normal", size=12, expand=True))
             row_controls.append(ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_color="red", on_click=loesche_datei))
 
             liste_postausgang.controls.append(ft.Container(content=ft.Row(row_controls), bgcolor="white10", padding=5, border_radius=5))
@@ -391,7 +406,7 @@ def main(page: ft.Page):
             text_status_meldung.visible = False
             wechsle_ansicht("touren")
         except Exception as ex:
-            text_status_meldung.value = f"❌ Fehler beim Archivieren."
+            text_status_meldung.value = f"❌ Fehler beim Archivieren!\nSind noch PDFs geöffnet? Bitte schließe sie zuerst."
             text_status_meldung.color = "#FF4C4C"
             text_status_meldung.visible = True
             page.update()
@@ -413,13 +428,6 @@ def main(page: ft.Page):
     bereich_dashboard.controls = [ansicht_kacheln, ft.Divider(color="transparent"), text_dash_meldung]
     bereich_archiv.controls = [archiv_info_box, ft.Divider(color="transparent"), ansicht_archiv_liste]
     bereich_postausgang.controls = [ft.Text("Pakete bauen:"), ladebalken, liste_postausgang, ft.Divider(color="white24"), text_status_meldung, ft.Row([btn_paket_bauen, btn_abschluss])]
-    
-    bereich_einstellungen.controls = [
-        ft.Text("Ziehe hier die neuesten PDFs aus Teams in die App:", color="white", weight="bold"),
-        ansicht_einstellungen_liste,
-        ft.Divider(color="white24"),
-        text_einstellungen_meldung
-    ]
 
     button_touren.on_click = lambda _: wechsle_ansicht("touren")
     button_archiv.on_click = lambda _: wechsle_ansicht("archiv")
@@ -431,7 +439,7 @@ def main(page: ft.Page):
     header_logo = ft.Container(
         content=ft.Stack([
             ft.Row([
-                ft.Image(src="vorlagen/logo.png", height=40, fit="contain", error_content=ft.Text("BILACON", color="#061A14", weight="bold", size=20))
+                ft.Image(src="logo.png", height=45, fit=ft.ImageFit.CONTAIN, filter_quality=ft.FilterQuality.HIGH, error_content=ft.Text("BILACON", color="#061A14", weight="bold", size=20))
             ], alignment=ft.MainAxisAlignment.START), 
             ft.Row([
                 ft.Container(content=text_benutzer_info, padding=ft.padding.only(right=10, top=12))
@@ -441,14 +449,17 @@ def main(page: ft.Page):
         bgcolor="white"
     )
     
-    nav_balken = ft.Container(content=ft.Row([button_touren, button_archiv, button_einstellungen, button_dashboard, button_postausgang, button_home], scroll="auto", alignment=ft.MainAxisAlignment.START), padding=5, bgcolor=FARBE_BUTTON)
-    
-    page.add(
-        ft.Column([header_logo, nav_balken, ft.Container(content=ft.Column([text_titel, bereich_profil, bereich_touren, bereich_dashboard, bereich_postausgang, bereich_archiv, bereich_einstellungen]), padding=15, expand=True)], expand=True, spacing=0)
+    nav_balken = ft.Container(
+        content=ft.Row(
+            [button_touren, button_archiv, button_einstellungen, button_dashboard, button_postausgang, button_home], 
+            wrap=True, 
+            alignment=ft.MainAxisAlignment.CENTER
+        ), 
+        padding=5, 
+        bgcolor=FARBE_BUTTON
     )
-
-    page.overlay.append(file_picker)
-    page.update()
+    
+    page.add(ft.Column([header_logo, nav_balken, ft.Container(content=ft.Column([text_titel, bereich_profil, bereich_touren, bereich_dashboard, bereich_postausgang, bereich_archiv, bereich_einstellungen]), padding=15, expand=True)], expand=True, spacing=0))
 
     def reminder_loop():
         while True:
@@ -458,4 +469,4 @@ def main(page: ft.Page):
     threading.Thread(target=reminder_loop, daemon=True).start()
     wechsle_ansicht("profil")
 
-ft.app(target=main, assets_dir=os.path.abspath(os.getcwd()))
+ft.app(target=main, assets_dir="assets")
