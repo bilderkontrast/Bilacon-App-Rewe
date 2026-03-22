@@ -185,7 +185,7 @@ def main(page: ft.Page):
             ist_da = os.path.exists(os.path.join(ORDNER_VORLAGEN, datei))
             def import_klick(e, n=datei):
                 app_state["update_datei"] = n
-                file_picker.pick_files() 
+                file_picker.pick_files() # Auf Android öffnen wir einfach den Dateimanager
             
             ansicht_einstellungen_liste.controls.append(
                 ft.Container(
@@ -436,6 +436,7 @@ def main(page: ft.Page):
     button_einstellungen.on_click = lambda _: wechsle_ansicht("einstellungen")
     button_home.on_click = lambda _: wechsle_ansicht("profil")
 
+    # --- KANTENGLÄTTUNG FÜR DAS LOGO (filter_quality=ft.FilterQuality.HIGH) ---
     header_logo = ft.Container(
         content=ft.Stack([
             ft.Row([
@@ -449,6 +450,7 @@ def main(page: ft.Page):
         bgcolor="white"
     )
     
+    # --- AUTOMATISCHER UMBRUCH FÜR DIE BUTTON-LEISTE (wrap=True) ---
     nav_balken = ft.Container(
         content=ft.Row(
             [button_touren, button_archiv, button_einstellungen, button_dashboard, button_postausgang, button_home], 
