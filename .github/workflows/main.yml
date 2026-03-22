@@ -1,0 +1,39 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch: # Erlaubt uns, den Bau manuell per Knopf zu starten
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code von GitHub holen
+        uses: actions/checkout@v4
+      
+      - name: Java für Android vorbereiten
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          
+      - name: Flutter (Flet-Basis) installieren
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          
+      - name: Python vorbereiten
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          
+      - name: Benötigte Pakete installieren
+        run: pip install flet pypdf
+        
+      - name: Die APK pressen (Android Build)
+        run: flet build apk
+        
+      - name: APK als Download-Link bereitstellen
+        uses: actions/upload-artifact@v4
+        with:
+          name: Bilacon-App-Fertig
+          path: build/apk/*.apk
